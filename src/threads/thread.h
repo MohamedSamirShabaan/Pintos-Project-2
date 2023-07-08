@@ -6,7 +6,14 @@
 #include <stdint.h>
 #include "threads/synch.h"
 
-
+struct deep_cache {
+  int cache_size;
+  int* cache;
+  int* importance;
+  int (*fetch_from_source)(int);
+  void (*update_cache)(int);
+  void (*remove_from_cache)(int);
+};
 
 /* States in a thread's life cycle. */
 enum thread_status
