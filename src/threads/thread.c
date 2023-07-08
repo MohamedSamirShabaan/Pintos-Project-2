@@ -644,3 +644,72 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+void deep_cache_init(struct deep_cache* deep_cache, int size, int (*fetch)(int), void (*update)(int), void (*remove)(int)) {
+    deep_cache->cache_size = size;
+    deep_cache->cache = (int*) malloc(size * sizeof(int));
+    deep_cache->importance = (int*) malloc(size * sizeof(int));
+    deep_cache->fetch_from_source = fetch;
+    deep_cache->update_cache = update;
+    deep_cache->remove_from_cache = remove;
+
+    // Initialize cache and importance
+    for (int i = 0; i < size; i++) {
+        deep_cache->cache[i] = -1;  // Set cache value to -1 indicating empty
+        deep_cache->importance[i] = 0;  // Set initial importance to 0
+    }
+}
+
+int deep_cache_get(struct deep_cache* deep_cache, int key) {
+    // Check if key is present in cache
+    for (int i = 0; i < deep_cache->cache_size; i++) {
+        if (deep_cache->cache[i] == key) {
+            // Retrieve value from cache
+            int value = deep_cache->cache[i];
+            deep_cache->update_cache(key);
+            return value;
+        }
+    }
+
+    // Fetch value from the source
+    int value = deep_cache->fetch_from_source(key);
+
+    // Find the least important item in the cache
+    int min_importance = deep_cache->importance[0];
+    int min_index = 0;
+    for (int i = 1; i < deep_cache->cache_size; i++) {
+        if (deep_cache->importance[i] < min_importance) {
+            min_importance = deep_cache->importance[i];
+            min_index = i;
+        }
+    }
+
+    // Evict the least important item from the cache
+    deep_cache->remove_from_cache(deep_cache->cache[min_index]);
+
+    // Store the value in the cache
+    deep_cache->cache[min_index] = key;
+    deep_cache->importance[min_index] = 1;  // Set importance to 1 for the newly cached item
+
+    return value;
+}
+
+void deep_cache_evict(struct deep_cache* deep_cache) {
+    // Find the least important item in the cache
+    int min_importance = deep_cache->importance[0];
+    int min_index = 0;
+    for (int i = 1; i < deep_cache->cache_size; i++) {
+        if (deep_cache->importance[i] < min_importance) {
+            min_importance = deep_cache->importance[i];
+            min_index = i;
+        }
+    }
+
+    // Remove the least important item from the cache
+    deep_cache->remove_from_cache(deep_cache->cache[min_index]);
+
+    // Clear the cache entry
+    deep_cache->cache[min_index] = -1;
+    deep_cache->importance[min_index] = 0;
+}
